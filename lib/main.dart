@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const BallBounceGame());
@@ -21,71 +22,145 @@ class BallBounceGame extends StatelessWidget {
 }
 
 /// -------------------- START SCREEN --------------------
-class StartScreen extends StatelessWidget {
+class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
 
   @override
+  State<StartScreen> createState() => _StartScreenState();
+}
+
+class _StartScreenState extends State<StartScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Color?> _bgAnimation;
+  double ballY = -0.7; // start near top
+  bool goingDown = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Animated background
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(seconds: 5))
+      ..repeat(reverse: true);
+    _bgAnimation = ColorTween(begin: Colors.deepPurple, end: Colors.indigo)
+        .animate(_controller);
+
+    // Animated bouncing ball preview (small vertical range)
+    Timer.periodic(const Duration(milliseconds: 25), (timer) {
+      setState(() {
+        if (goingDown) {
+          ballY += 0.01; // slower and smaller movement
+          if (ballY >= -0.6) goingDown = false;
+        } else {
+          ballY -= 0.01;
+          if (ballY <= -0.8) goingDown = true;
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              "Ball Bounce Game",
-              style: TextStyle(
-                fontSize: 32,
-                color: Colors.orange,
-                fontWeight: FontWeight.bold,
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Scaffold(
+          backgroundColor: _bgAnimation.value,
+          body: Stack(
+            children: [
+              // Bouncing ball preview (top area)
+              Align(
+                alignment: Alignment(0, ballY),
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 40),
-            const Text(
-              "Select Difficulty",
-              style: TextStyle(color: Colors.white70, fontSize: 20),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => GameScreen(level: "Basic")));
-                  },
-                  child: const Text("Basic"),
+
+              // Main UI
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Title
+                    Text(
+                      "Paddle Pop 💥",
+                      style: GoogleFonts.pressStart2p(
+                        textStyle: TextStyle(
+                          fontSize: 28,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 8.0,
+                              color: Colors.purpleAccent,
+                              offset: Offset(2, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    
+                    ),
+                    const SizedBox(height: 40),
+                    const Text(
+                      "🎮 Select Difficulty",
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 20),
+                    // Difficulty Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildDifficultyButton(
+                            context, "🛋️ Chill", Colors.green, "Chill"),
+                        const SizedBox(width: 20),
+                        _buildDifficultyButton(
+                            context, "🎵 Vibe", Colors.orange, "Vibe"),
+                        const SizedBox(width: 20),
+                        _buildDifficultyButton(
+                            context, "🔥 Lit", Colors.red, "Lit"),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  onPressed: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => GameScreen(level: "Intermediate")));
-                  },
-                  child: const Text("Intermediate"),
-                ),
-                const SizedBox(width: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => GameScreen(level: "Expert")));
-                  },
-                  child: const Text("Expert"),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDifficultyButton(
+      BuildContext context, String label, Color color, String level) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => GameScreen(level: level)),
+        );
+      },
+      child: Text(label, style: const TextStyle(fontSize: 18)),
     );
   }
 }

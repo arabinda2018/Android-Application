@@ -11,13 +11,20 @@ dependencies:
     sdk: flutter
   shared_preferences: ^2.2.3
   audioplayers: ^6.0.0
+  google_fonts: ^5.0.0
+  flutter_launcher_icons: "^0.12.0"
+  
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
 
 flutter:
   uses-material-design: true
   assets:
     - assets/sounds/game_start.mp3
     - assets/sounds/game_over.mp3
+flutter_icons:
+  android: true
+  image_path: "assets/icons/app_icon2.png"
