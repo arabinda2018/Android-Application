@@ -42,20 +42,17 @@ class StartScreen extends StatelessWidget {
             ),
             const SizedBox(height: 40),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const GameScreen()),
+                  MaterialPageRoute(builder: (_) => const DifficultyScreen()),
                 );
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text("Start Game", style: TextStyle(fontSize: 20)),
             ),
           ],
@@ -65,9 +62,95 @@ class StartScreen extends StatelessWidget {
   }
 }
 
+/// -------------------- DIFFICULTY SELECTION --------------------
+class DifficultyScreen extends StatelessWidget {
+  const DifficultyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "Select Difficulty",
+              style: TextStyle(
+                fontSize: 28,
+                color: Colors.yellow,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 30),
+            DifficultyButton(level: "Basic", dx: 0.02, dy: 0.025, paddleWidth: 120, speedFactor: 1.05),
+            DifficultyButton(level: "Intermediate", dx: 0.03, dy: 0.035, paddleWidth: 100, speedFactor: 1.08),
+            DifficultyButton(level: "Expert", dx: 0.04, dy: 0.045, paddleWidth: 80, speedFactor: 1.12),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DifficultyButton extends StatelessWidget {
+  final String level;
+  final double dx, dy;
+  final double paddleWidth;
+  final double speedFactor;
+
+  const DifficultyButton({
+    super.key,
+    required this.level,
+    required this.dx,
+    required this.dy,
+    required this.paddleWidth,
+    required this.speedFactor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: ElevatedButton(
+        onPressed: () {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GameScreen(
+                initialDx: dx,
+                initialDy: dy,
+                paddleWidth: paddleWidth,
+                speedFactor: speedFactor,
+              ),
+            ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueGrey,
+          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Text(level, style: const TextStyle(fontSize: 20)),
+      ),
+    );
+  }
+}
+
 /// -------------------- GAME SCREEN --------------------
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final double initialDx;
+  final double initialDy;
+  final double paddleWidth;
+  final double speedFactor;
+
+  const GameScreen({
+    super.key,
+    required this.initialDx,
+    required this.initialDy,
+    required this.paddleWidth,
+    required this.speedFactor,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -80,12 +163,12 @@ class _GameScreenState extends State<GameScreen> {
   double ballSize = 30;
 
   // Ball movement speed
-  double dx = 0.02;
-  double dy = 0.025;
+  late double dx;
+  late double dy;
 
   // Paddle properties
   double paddleX = 0;
-  double paddleWidth = 120;
+  late double paddleWidth;
   double paddleHeight = 20;
 
   // Game state
@@ -96,11 +179,18 @@ class _GameScreenState extends State<GameScreen> {
   int score = 0;
   int highScore = 0;
 
+  late double speedFactor;
+
   @override
   void initState() {
     super.initState();
+    dx = widget.initialDx;
+    dy = widget.initialDy;
+    paddleWidth = widget.paddleWidth;
+    speedFactor = widget.speedFactor;
+
     _loadHighScore();
-    startGame(); // Start the game once when screen opens
+    startGame();
   }
 
   Future<void> _loadHighScore() async {
@@ -115,32 +205,23 @@ class _GameScreenState extends State<GameScreen> {
     await prefs.setInt("highScore", newScore);
   }
 
-  /// Start or restart the game
   void startGame() {
     isGameRunning = true;
     score = 0;
-
-    // Reset positions
     ballX = 0;
     ballY = 0;
     paddleX = 0;
-
-    // Randomize initial direction
-    dx = Random().nextBool() ? 0.02 : -0.02;
-    dy = -0.025;
+    dx = widget.initialDx * (Random().nextBool() ? 1 : -1);
+    dy = -widget.initialDy;
 
     timer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
-      if (!isGameRunning) return; // Stop updating if game over
+      if (!isGameRunning) return;
 
       setState(() {
-        // Move ball
         ballX += dx;
         ballY += dy;
 
-        // Bounce off left/right walls
         if (ballX <= -1 || ballX >= 1) dx = -dx;
-
-        // Bounce off top wall
         if (ballY <= -1) dy = -dy;
 
         // Paddle collision
@@ -149,19 +230,14 @@ class _GameScreenState extends State<GameScreen> {
             ballX <= paddleX + paddleWidth / 200) {
           dy = -dy;
           score++;
-
-          if (score % 5 == 0) {
-            dx *= 1.1;
-            dy *= 1.1;
-          }
+          dx *= speedFactor;
+          dy *= speedFactor;
         }
 
-        // Game over if ball falls below paddle
         if (ballY > 1) {
           timer.cancel();
           isGameRunning = false;
 
-          // Save high score
           if (score > highScore) {
             highScore = score;
             _saveHighScore(score);
@@ -173,7 +249,6 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  /// Game Over dialog with Restart & Exit
   void _showGameOver() {
     showDialog(
       context: context,
@@ -182,37 +257,32 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Colors.black87,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: const Center(
-          child: Text(
-            "🎮 Game Over!",
-            style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
-          ),
+          child: Text("🎮 Game Over!", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text("Your Score: $score",
-                style: const TextStyle(color: Colors.white, fontSize: 20)),
+            Text("Your Score: $score", style: const TextStyle(color: Colors.white, fontSize: 20)),
             const SizedBox(height: 10),
-            Text("Best Score: $highScore",
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 20)),
+            Text("Best Score: $highScore", style: const TextStyle(color: Colors.greenAccent, fontSize: 20)),
           ],
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             onPressed: () {
               Navigator.pop(context);
               resetGame();
             },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             child: const Text("Restart"),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context); // Back to Start screen
+              Navigator.pop(context); // back to StartScreen
             },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text("Exit"),
           ),
         ],
@@ -227,6 +297,8 @@ class _GameScreenState extends State<GameScreen> {
       paddleX = 0;
       score = 0;
       isGameRunning = true;
+      dx = widget.initialDx;
+      dy = -widget.initialDy;
     });
     startGame();
   }
@@ -253,43 +325,26 @@ class _GameScreenState extends State<GameScreen> {
         onHorizontalDragUpdate: movePaddle,
         child: Stack(
           children: [
-            // Ball
             Align(
               alignment: Alignment(ballX, ballY),
               child: Container(
                 width: ballSize,
                 height: ballSize,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
               ),
             ),
-
-            // Paddle
             Align(
               alignment: Alignment(paddleX, 0.95),
               child: Container(
                 width: paddleWidth,
                 height: paddleHeight,
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(10)),
               ),
             ),
-
-            // Score display
             Align(
               alignment: const Alignment(0, -0.95),
-              child: Text(
-                "Score: $score | Best: $highScore",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text("Score: $score | Best: $highScore",
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
