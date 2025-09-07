@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const BallBounceGame());
@@ -18,7 +19,6 @@ class BallBounceGame extends StatelessWidget {
   }
 }
 
-/// The main game screen
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
@@ -28,16 +28,16 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   // Ball properties
-  double ballX = 0; // X position (-1 to 1)
-  double ballY = 0; // Y position (-1 to 1)
+  double ballX = 0;
+  double ballY = 0;
   double ballSize = 30;
 
-  // Ball movement speed
+  // Ball speed
   double dx = 0.02;
   double dy = 0.025;
 
-  // Paddle properties
-  double paddleX = 0; // X position of paddle (-1 to 1)
+  // Paddle
+  double paddleX = 0;
   double paddleWidth = 120;
   double paddleHeight = 20;
 
@@ -48,53 +48,71 @@ class _GameScreenState extends State<GameScreen> {
 
   // Score
   int score = 0;
+  int highScore = 0; // 🎯 save old record
 
-  /// Starts or restarts the game
+  @override
+  void initState() {
+    super.initState();
+    _loadHighScore(); // load saved record
+  }
+
+  /// Load high score from storage
+  Future<void> _loadHighScore() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      highScore = prefs.getInt("highScore") ?? 0;
+    });
+  }
+
+  /// Save high score to storage
+  Future<void> _saveHighScore(int newScore) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt("highScore", newScore);
+  }
+
+  /// Start the game
   void startGame() {
     isGameRunning = true;
     isPaused = false;
     score = 0;
 
-    // Reset ball speed
     dx = 0.02;
     dy = 0.025;
 
-    // Start a timer that updates the game every 16ms (~60fps)
     timer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
       if (!isPaused) {
         setState(() {
-          // Move the ball
+          // Move ball
           ballX += dx;
           ballY += dy;
 
-          // Bounce off left/right walls
-          if (ballX <= -1 || ballX >= 1) {
-            dx = -dx;
-          }
-
-          // Bounce off the top wall
-          if (ballY <= -1) {
-            dy = -dy;
-          }
+          // Walls
+          if (ballX <= -1 || ballX >= 1) dx = -dx;
+          if (ballY <= -1) dy = -dy;
 
           // Paddle collision
           if (ballY >= 0.9 &&
               ballX >= paddleX - paddleWidth / 200 &&
               ballX <= paddleX + paddleWidth / 200) {
-            dy = -dy; // Bounce upward
-            score++; // Increase score
+            dy = -dy;
+            score++;
 
-            // Increase speed every 5 points
             if (score % 5 == 0) {
               dx *= 1.1;
               dy *= 1.1;
             }
           }
 
-          // Game over if ball falls below paddle
+          // Game Over
           if (ballY > 1) {
             timer.cancel();
             isGameRunning = false;
+
+            if (score > highScore) {
+              highScore = score;
+              _saveHighScore(score); // Save new record
+            }
+
             _showGameOver();
           }
         });
@@ -102,13 +120,12 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  /// Shows Game Over dialog
   void _showGameOver() {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Game Over!"),
-        content: Text("Your score: $score"),
+        content: Text("Your score: $score\nBest: $highScore"),
         actions: [
           TextButton(
             onPressed: () {
@@ -122,7 +139,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Resets ball and paddle to center
   void resetGame() {
     setState(() {
       ballX = 0;
@@ -133,19 +149,14 @@ class _GameScreenState extends State<GameScreen> {
     startGame();
   }
 
-  /// Moves paddle based on finger drag (faster movement)
   void movePaddle(DragUpdateDetails details) {
     setState(() {
-      // Make movement more sensitive by multiplying
       paddleX += (details.delta.dx * 2) / (MediaQuery.of(context).size.width);
-
-      // Keep paddle inside screen
       if (paddleX < -1) paddleX = -1;
       if (paddleX > 1) paddleX = 1;
     });
   }
 
-  /// Toggle pause/resume
   void togglePause() {
     setState(() {
       isPaused = !isPaused;
@@ -186,11 +197,11 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
 
-            // Score (top center)
+            // Current Score
             Align(
               alignment: const Alignment(0, -0.95),
               child: Text(
-                "Score: $score",
+                "Score: $score | Best: $highScore",
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -199,7 +210,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
 
-            // Play/Pause button (top right)
+            // Play / Pause
             Align(
               alignment: const Alignment(0.9, -0.9),
               child: FloatingActionButton(
@@ -213,10 +224,10 @@ class _GameScreenState extends State<GameScreen> {
                 },
                 child: Icon(
                   !isGameRunning
-                      ? Icons.play_arrow // Before start
+                      ? Icons.play_arrow
                       : isPaused
-                          ? Icons.play_arrow // Resume
-                          : Icons.pause, // Pause
+                          ? Icons.play_arrow
+                          : Icons.pause,
                   color: Colors.black,
                 ),
               ),
