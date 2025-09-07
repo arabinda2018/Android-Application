@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -6,7 +7,7 @@ void main() {
   runApp(const BallBounceGame());
 }
 
-/// Root widget for the game
+/// Root widget
 class BallBounceGame extends StatelessWidget {
   const BallBounceGame({super.key});
 
@@ -14,11 +15,57 @@ class BallBounceGame extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: GameScreen(),
+      home: StartScreen(),
     );
   }
 }
 
+/// -------------------- START SCREEN --------------------
+class StartScreen extends StatelessWidget {
+  const StartScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              "Ball Bounce Game",
+              style: TextStyle(
+                fontSize: 32,
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GameScreen()),
+                );
+              },
+              child: const Text("Start Game", style: TextStyle(fontSize: 20)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// -------------------- GAME SCREEN --------------------
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
@@ -32,11 +79,11 @@ class _GameScreenState extends State<GameScreen> {
   double ballY = 0;
   double ballSize = 30;
 
-  // Ball speed
+  // Ball movement speed
   double dx = 0.02;
   double dy = 0.025;
 
-  // Paddle
+  // Paddle properties
   double paddleX = 0;
   double paddleWidth = 120;
   double paddleHeight = 20;
@@ -44,19 +91,18 @@ class _GameScreenState extends State<GameScreen> {
   // Game state
   Timer? timer;
   bool isGameRunning = false;
-  bool isPaused = false;
 
   // Score
   int score = 0;
-  int highScore = 0; // 🎯 save old record
+  int highScore = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadHighScore(); // load saved record
+    _loadHighScore();
+    startGame(); // Start the game once when screen opens
   }
 
-  /// Load high score from storage
   Future<void> _loadHighScore() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -64,75 +110,110 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  /// Save high score to storage
   Future<void> _saveHighScore(int newScore) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt("highScore", newScore);
   }
 
-  /// Start the game
+  /// Start or restart the game
   void startGame() {
     isGameRunning = true;
-    isPaused = false;
     score = 0;
 
-    dx = 0.02;
-    dy = 0.025;
+    // Reset positions
+    ballX = 0;
+    ballY = 0;
+    paddleX = 0;
+
+    // Randomize initial direction
+    dx = Random().nextBool() ? 0.02 : -0.02;
+    dy = -0.025;
 
     timer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
-      if (!isPaused) {
-        setState(() {
-          // Move ball
-          ballX += dx;
-          ballY += dy;
+      if (!isGameRunning) return; // Stop updating if game over
 
-          // Walls
-          if (ballX <= -1 || ballX >= 1) dx = -dx;
-          if (ballY <= -1) dy = -dy;
+      setState(() {
+        // Move ball
+        ballX += dx;
+        ballY += dy;
 
-          // Paddle collision
-          if (ballY >= 0.9 &&
-              ballX >= paddleX - paddleWidth / 200 &&
-              ballX <= paddleX + paddleWidth / 200) {
-            dy = -dy;
-            score++;
+        // Bounce off left/right walls
+        if (ballX <= -1 || ballX >= 1) dx = -dx;
 
-            if (score % 5 == 0) {
-              dx *= 1.1;
-              dy *= 1.1;
-            }
+        // Bounce off top wall
+        if (ballY <= -1) dy = -dy;
+
+        // Paddle collision
+        if (ballY >= 0.9 &&
+            ballX >= paddleX - paddleWidth / 200 &&
+            ballX <= paddleX + paddleWidth / 200) {
+          dy = -dy;
+          score++;
+
+          if (score % 5 == 0) {
+            dx *= 1.1;
+            dy *= 1.1;
+          }
+        }
+
+        // Game over if ball falls below paddle
+        if (ballY > 1) {
+          timer.cancel();
+          isGameRunning = false;
+
+          // Save high score
+          if (score > highScore) {
+            highScore = score;
+            _saveHighScore(score);
           }
 
-          // Game Over
-          if (ballY > 1) {
-            timer.cancel();
-            isGameRunning = false;
-
-            if (score > highScore) {
-              highScore = score;
-              _saveHighScore(score); // Save new record
-            }
-
-            _showGameOver();
-          }
-        });
-      }
+          _showGameOver();
+        }
+      });
     });
   }
 
+  /// Game Over dialog with Restart & Exit
   void _showGameOver() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text("Game Over!"),
-        content: Text("Your score: $score\nBest: $highScore"),
+        backgroundColor: Colors.black87,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Center(
+          child: Text(
+            "🎮 Game Over!",
+            style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text("Your Score: $score",
+                style: const TextStyle(color: Colors.white, fontSize: 20)),
+            const SizedBox(height: 10),
+            Text("Best Score: $highScore",
+                style: const TextStyle(color: Colors.greenAccent, fontSize: 20)),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
             onPressed: () {
               Navigator.pop(context);
               resetGame();
             },
             child: const Text("Restart"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context); // Back to Start screen
+            },
+            child: const Text("Exit"),
           ),
         ],
       ),
@@ -145,6 +226,7 @@ class _GameScreenState extends State<GameScreen> {
       ballY = 0;
       paddleX = 0;
       score = 0;
+      isGameRunning = true;
     });
     startGame();
   }
@@ -157,10 +239,10 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void togglePause() {
-    setState(() {
-      isPaused = !isPaused;
-    });
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -197,38 +279,15 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
 
-            // Current Score
+            // Score display
             Align(
               alignment: const Alignment(0, -0.95),
               child: Text(
                 "Score: $score | Best: $highScore",
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            // Play / Pause
-            Align(
-              alignment: const Alignment(0.9, -0.9),
-              child: FloatingActionButton(
-                backgroundColor: Colors.white,
-                onPressed: () {
-                  if (!isGameRunning) {
-                    startGame();
-                  } else {
-                    togglePause();
-                  }
-                },
-                child: Icon(
-                  !isGameRunning
-                      ? Icons.play_arrow
-                      : isPaused
-                          ? Icons.play_arrow
-                          : Icons.pause,
-                  color: Colors.black,
                 ),
               ),
             ),
